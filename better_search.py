@@ -4,13 +4,14 @@ import matplotlib.pyplot as plt
 from scipy.stats import entropy
 
 class TargetSearchMPC:
-    def __init__(self, grid_size=(5, 5), n_agents=2, alpha=0.1, beta=0.1, horizon=2):
+    def __init__(self, grid_size=(5, 5), n_agents=2, alpha=0.1, beta=0.1, horizon=2, fast_mode=False):
         self.grid_size = grid_size
         self.n_states = grid_size[0] * grid_size[1]
         self.n_agents = n_agents
         self.alpha = alpha  # False alarm probability
         self.beta = beta    # Missed detection probability
         self.horizon = horizon
+        self.fast_mode = fast_mode #flag for optimized execution
         
         # Initialize transition matrix (Markov chain)
         self.transition_matrix = self.create_transition_matrix()
@@ -74,14 +75,12 @@ class TargetSearchMPC:
 
     def simulate_observation(self, sensors):
         """Generate simulated sensor observations"""
-        observations = []
-        for s in sensors:
-            if s == self.true_position:
-                obs = np.random.choice(2, p=[self.beta, 1-self.beta])
-            else:
-                obs = np.random.choice(2, p=[1-self.alpha, self.alpha])
-            observations.append(obs)
-        return observations
+        """Vectorized Sensor Observations (Avoids Loop-Based Sampling)"""
+        return np.where(
+            np.array(sensors) == self.true_position,
+            np.random.choice([0, 1], p=[self.beta, 1 - self.beta], size=len(sensors)),
+            np.random.choice([0, 1], p=[1 - self.alpha, self.alpha], size=len(sensors))
+        ).tolist()
     
     def objective_function(self, objective_type, belief):
         """Dynamically execute the selected objective function."""
@@ -93,38 +92,47 @@ class TargetSearchMPC:
         return objective_functions.get(objective_type, lambda _: None)(belief)
     
     def mpc_plan(self, objective_type):
-        """MPC planning with receding horizon"""
-        best_value = -np.inf
-        best_action = None
-        
-        # Generate reachable positions for each agent
-        candidate_actions = []
-        for agent_pos in self.agent_positions:
-            neighbors = self.get_neighbors(agent_pos)
-            candidate_actions.append(neighbors + [agent_pos])
-        
-        # Evaluate all possible combinations of agent movements
-        for action_seq in itertools.product(*candidate_actions):
-            current_belief = self.belief.copy()
-            total_value = 0
+        """Uses either brute-force full search or fast greedy strategy based on `fast_mode`."""
+        if self.fast_mode:
+            # Greedy movement selection
+            best_action = []
+            for agent_pos in self.agent_positions:
+                neighbors = self.get_neighbors(agent_pos) + [agent_pos]
+                best_move = max(neighbors, key=lambda n: self.belief[n])
+                best_action.append(best_move)
+            return best_action
+        else:
+            """MPC planning with receding horizon"""
+            best_value = -np.inf
+            best_action = None
             
-            for t in range(self.horizon):
-                obs = self.simulate_observation(action_seq)
-                current_belief = self.update_belief(action_seq, obs)
-                total_value += self.objective_function(objective_type, current_belief)
-                if isinstance(total_value, np.ndarray):  #Handle array case when using greedy_map
-                    total_value = np.max(total_value)  #Convert array to a single value
+            # Generate reachable positions for each agent
+            candidate_actions = []
+            for agent_pos in self.agent_positions:
+                neighbors = self.get_neighbors(agent_pos)
+                candidate_actions.append(neighbors + [agent_pos])
             
-            if total_value > best_value:
-                best_value = total_value
-                best_action = action_seq
+            # Evaluate all possible combinations of agent movements
+            for action_seq in itertools.product(*candidate_actions):
+                current_belief = self.belief.copy()
+                total_value = 0
+                
+                for t in range(self.horizon):
+                    obs = self.simulate_observation(action_seq)
+                    current_belief = self.update_belief(action_seq, obs)
+                    total_value += self.objective_function(objective_type, current_belief)
+                    if isinstance(total_value, np.ndarray):  #Handle array case when using greedy_map
+                        total_value = np.max(total_value)  #Convert array to a single value
+                
+                if total_value > best_value:
+                    best_value = total_value
+                    best_action = action_seq
         return best_action
     
     def run_simulation(self, steps=20, detection_threshold=0.8, objective_type = "greedy_map"):
         initial_belief = self.belief.copy()
         
         for step in range(steps):
-            print(f"step: {step}")
             # Plan and move agents
             new_positions = self.mpc_plan(objective_type)
             self.agent_positions = list(new_positions)
@@ -150,7 +158,7 @@ class TargetSearchMPC:
             # in that cell => "found" the target
             for (agent_idx, agent_cell) in enumerate(new_positions):
                 if obs[agent_idx] == 1 and self.belief[agent_cell] > detection_threshold:
-                    print(f"Target detected by Agent {agent_idx} at step {step}, cell {agent_cell}.")
+                    print(f"Target detected by Agent {agent_idx} at step {step}, cell {divmod(simulator.true_position, 50)}.")
                     # Optionally store final results
                     self.visualize_trajectories(initial_belief)
                     return self.trajectories
@@ -205,13 +213,13 @@ class TargetSearchMPC:
     
 # Example usage
 if __name__ == "__main__":
-    simulator = TargetSearchMPC(grid_size=(50,50), n_agents=2, horizon=2)
+    simulator = TargetSearchMPC(grid_size=(50,50), n_agents=3, horizon=2, fast_mode=True)
     # Choose objective: "entropy", "greedy_map", or "variance_reducing"
-    trajectories = simulator.run_simulation(steps=250, objective_type="greedy_map")
+    trajectories = simulator.run_simulation(steps=3900, objective_type="greedy_map")
     simulator.visualize_trajectories()
     print("Simulation complete. Check plots for trajectories.")
     
     # Print final results
     print("Final belief distribution:")
     print(simulator.belief.reshape(50,50))
-    print(f"True target position: {divmod(simulator.true_position, 5)}")
+    print(f"True target position: {divmod(simulator.true_position, 50)}")
