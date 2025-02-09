@@ -23,6 +23,10 @@ class TargetSearchMPC:
             'target': [self.true_position],
             'agents': [[pos] for pos in self.agent_positions]
         }
+    
+        self.correct_detections = 0  # Track successful detections
+        self.map_estimates = []  # Store MAP estimates
+
     def create_transition_matrix(self):
         """Create a simple transition matrix where target moves to adjacent cells"""
         matrix = np.zeros((self.n_states, self.n_states))
@@ -78,12 +82,17 @@ class TargetSearchMPC:
                 obs = np.random.choice(2, p=[1-self.alpha, self.alpha])
             observations.append(obs)
         return observations
-
-    def objective_function(self, belief):
-        """Objective function: Negative entropy (maximize information gain)"""
-        return -entropy(belief)
     
-    def mpc_plan(self):
+    def objective_function(self, objective_type, belief):
+        """Dynamically execute the selected objective function."""
+        objective_functions = {
+            "entropy": lambda b: -entropy(b),
+            "greedy_map": lambda b: np.argsort(b)[-self.n_agents:][::-1],
+            "variance_reducing": lambda b: np.argsort(b)[- (self.n_agents + 1):][::-1][1:]
+        }
+        return objective_functions.get(objective_type, lambda _: None)(belief)
+    
+    def mpc_plan(self, objective_type):
         """MPC planning with receding horizon"""
         best_value = -np.inf
         best_action = None
@@ -102,19 +111,22 @@ class TargetSearchMPC:
             for t in range(self.horizon):
                 obs = self.simulate_observation(action_seq)
                 current_belief = self.update_belief(action_seq, obs)
-                total_value += -entropy(current_belief)
+                total_value += self.objective_function(objective_type, current_belief)
+                if isinstance(total_value, np.ndarray):  #Handle array case when using greedy_map
+                    total_value = np.max(total_value)  #Convert array to a single value
             
             if total_value > best_value:
                 best_value = total_value
                 best_action = action_seq
         return best_action
     
-    def run_simulation(self, steps=20, detection_threshold=0.8):
+    def run_simulation(self, steps=20, detection_threshold=0.8, objective_type = "greedy_map"):
         initial_belief = self.belief.copy()
         
         for step in range(steps):
+            print(f"step: {step}")
             # Plan and move agents
-            new_positions = self.mpc_plan()
+            new_positions = self.mpc_plan(objective_type)
             self.agent_positions = list(new_positions)
             
             # Update target position (Markov transition)
@@ -194,7 +206,8 @@ class TargetSearchMPC:
 # Example usage
 if __name__ == "__main__":
     simulator = TargetSearchMPC(grid_size=(50,50), n_agents=2, horizon=2)
-    trajectories = simulator.run_simulation(steps=750)
+    # Choose objective: "entropy", "greedy_map", or "variance_reducing"
+    trajectories = simulator.run_simulation(steps=250, objective_type="greedy_map")
     simulator.visualize_trajectories()
     print("Simulation complete. Check plots for trajectories.")
     
