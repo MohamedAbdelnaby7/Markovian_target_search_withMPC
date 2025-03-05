@@ -1,8 +1,8 @@
-
 from TargetSearchMPC import *
 from TargetSearchMCTS import *
 from EnvironmentMCTS import *
-    
+from utils import *
+
 # Example usage
 if __name__ == "__main__":
     # simulator = TargetSearchMPC(grid_size=(50,50), n_agents=3, horizon=2, fast_mode=False)
@@ -19,16 +19,19 @@ if __name__ == "__main__":
     # Initialize Environment
     GRID_SIZE = (50, 50)  # Grid dimensions (rows, cols)
     N_AGENTS = 3  # Number of searching agents
-    SIMULATIONS = 20  # Number of MCTS simulations per decision
+    SIMULATIONS = 30  # Number of MCTS simulations per decision
     HORIZON = 3  # Rollout depth for MCTS
-    STEPS = 100  # Number of time steps for the search
+    STEPS = 9000  # Number of time steps for the search
     DETECTION_THRESHOLD = 0.8  # Confidence threshold for stopping
+    gaussian_center = (25,25)
 
     # Create the environment
-    env = SearchEnvironment(grid_size=GRID_SIZE, n_agents=N_AGENTS)
-
+    #env = SearchEnvironment(grid_size=GRID_SIZE, n_agents=N_AGENTS)
+    env = SearchEnvironment(grid_size=GRID_SIZE, n_agents=N_AGENTS, gaussian_bias=True,heatmap_center=gaussian_center)
+    
     # Initialize MCTS Planner
-    mcts = MCTSPlanner(env, horizon=HORIZON, simulations=SIMULATIONS)
+    #mcts = MCTSPlanner(env, horizon=HORIZON, simulations=SIMULATIONS)
+    mcts = MCTSPlanner(env, horizon=HORIZON, simulations=SIMULATIONS, gaussian_bias=True, heatmap_center=gaussian_center)
 
     # Store the initial state for visualization
     initial_agent_positions = env.agent_positions
@@ -49,9 +52,6 @@ if __name__ == "__main__":
         # Move the target randomly
         env.move_target()
 
-        # Simulate sensor observations
-        obs = env.simulate_observation(env.agent_positions, HORIZON)
-
         # Check if the target is found
         if env.is_terminal(env.agent_positions):
             print(f" Target detected at step {step + 1}!")
@@ -60,4 +60,5 @@ if __name__ == "__main__":
     print("\n Search complete!")
 
     # Visualize the final search results
-    visualize_trajectories(env.grid_size, None, None, env.trajectories)
+    #visualize_trajectories_MCTS(env.grid_size, env.trajectories)
+    animate_trajectories_MCTS(GRID_SIZE, env.trajectories, interval=600)
