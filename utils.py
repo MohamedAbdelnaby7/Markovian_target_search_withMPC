@@ -89,7 +89,7 @@ def visualize_trajectories_MCTS(grid_size, trajectories):
     plt.legend()
     plt.show()
 
-def animate_trajectories_MCTS(grid_size, trajectories, interval=500):
+def animate_trajectories(grid_size, trajectories, interval=500):
     """
     Animates agent and target trajectories for MCTS on a single figure.
 
