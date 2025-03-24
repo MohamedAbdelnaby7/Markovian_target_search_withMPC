@@ -11,44 +11,16 @@ class TargetSearchMPC:
         self.horizon = horizon
         self.fast_mode = fast_mode #flag for optimized execution
         
-        # Initialize transition matrix (Markov chain)
-        self.transition_matrix = self.create_transition_matrix()
-        
         # Initialize uniform belief
         self.belief = np.ones(self.env.n_states) / self.env.n_states
     
         self.correct_detections = 0  # Track successful detections
         self.map_estimates = []  # Store MAP estimates
 
-    def create_transition_matrix(self):
-        """Create a simple transition matrix where target moves to adjacent cells"""
-        matrix = np.zeros((self.env.n_states, self.env.n_states))
-        for i in range(self.env.n_states):
-            neighbors = self.env.get_neighbors(i)
-            p_stay = 0.2  # Probability of staying in current cell
-            p_move = (1 - p_stay) / len(neighbors) if neighbors else 0
-            matrix[i, i] = p_stay
-            for n in neighbors:
-                matrix[i, n] = p_move
-        return matrix
-
-    def get_neighbors(self, state):
-        """Get adjacent states (including diagonal)"""
-        row, col = divmod(state, self.env.grid_size[1])
-        neighbors = []
-        for dr in [-1, 0, 1]:
-            for dc in [-1, 0, 1]:
-                if dr == 0 and dc == 0:
-                    continue
-                nr, nc = row + dr, col + dc
-                if 0 <= nr < self.env.grid_size[0] and 0 <= nc < self.env.grid_size[1]:
-                    neighbors.append(nr * self.env.grid_size[1] + nc)
-        return neighbors
-
     def update_belief(self, sensors, observations):
         """Update belief based on sensor readings"""
         # Predict step (Markov transition)
-        predicted_belief = self.transition_matrix.T @ self.belief
+        predicted_belief = self.env.transition_matrix.T @ self.belief
         
         # Update step (Bayesian update)
         likelihood = np.ones(self.env.n_states)
@@ -77,7 +49,7 @@ class TargetSearchMPC:
                 np.random.choice([0, 1], p=[1 - self.alpha, self.alpha], size=len(sensors))
                 ).tolist()
         for _ in range(horizon):  # Simulate for each future step
-            predicted_target_pos = np.random.choice(self.env.n_states, p=self.transition_matrix[predicted_target_pos])
+            predicted_target_pos = np.random.choice(self.env.n_states, p=self.env.transition_matrix[predicted_target_pos])
             observations_over_horizon.append(
                 np.where(np.array(sensors) == predicted_target_pos,
                 np.random.choice([0, 1], p=[self.beta, 1 - self.beta], size=len(sensors)),
@@ -144,15 +116,8 @@ class TargetSearchMPC:
             new_positions = self.mpc_plan(objective_type)
             self.env.agent_positions = list(new_positions)
             
-            # Update target position (Markov transition)
-            self.env.true_position = np.random.choice(
-                self.env.n_states, p=self.transition_matrix[self.env.true_position]
-            )
-
-            # Record trajectories
-            self.env.trajectories['target'].append(self.env.true_position)
-            for i, pos in enumerate(new_positions):
-                self.env.trajectories['agents'][i].append(pos)
+            self.env.move_target()
+            self.env.update_agents(new_positions)
             
             # Get sensor observations
             obs = self.simulate_observation(new_positions, 0)

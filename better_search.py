@@ -1,6 +1,6 @@
 from TargetSearchMPC import *
 from TargetSearchMCTS import *
-from EnvironmentMCTS import *
+from Environment import *
 from utils import *
 
 # Example usage
@@ -9,8 +9,15 @@ if __name__ == "__main__":
     GRID_SIZE = (50, 50)  # Grid dimensions (rows, cols)
     N_AGENTS = 3  # Number of searching agents
     HORIZON = 3  # Rollout depth for MCTS and MPC
+    DETECTION_THRESHOLD = 0.8  # Confidence threshold for stopping
+    STEPS = 9000  # Number of time steps for the search
 
-    env_mpc = SearchEnvironment(grid_size=GRID_SIZE, n_agents=N_AGENTS)
+    env_genterative = SearchEnvironment(grid_size=GRID_SIZE, n_agents=N_AGENTS,
+                 target_mdp = True)
+    for step in range(STEPS):
+        env_genterative.move_target()
+    generated_target = env_genterative.trajectories["target"]
+    env_mpc = SearchEnvironment(grid_size=GRID_SIZE, n_agents=N_AGENTS, target_mdp=True)
     simulator = TargetSearchMPC(env_mpc, horizon=HORIZON, fast_mode=False)
     # Choose objective: "entropy", "greedy_map", or "variance_reducing"
     trajectories = simulator.run_simulation(steps=3900, objective_type="entropy")
@@ -24,8 +31,6 @@ if __name__ == "__main__":
 
     
     SIMULATIONS = 30  # Number of MCTS simulations per decision
-    STEPS = 9000  # Number of time steps for the search
-    DETECTION_THRESHOLD = 0.8  # Confidence threshold for stopping
     gaussian_center = (25,25)
 
     # Create the environment
@@ -53,8 +58,8 @@ if __name__ == "__main__":
         env_mcts.update_agents(best_action)  # Move agents based on MCTS decisions
 
         # Move the target randomly
-        env_mcts.move_target()
-
+        #env_mcts.move_target()
+        env_mcts.move_target(step)
         # Check if the target is found
         if env_mcts.is_terminal(env_mcts.agent_positions):
             print(f" Target detected at step {step + 1}!")

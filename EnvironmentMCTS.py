@@ -5,7 +5,8 @@ import math
 
 class SearchEnvironment:
     def __init__(self, grid_size=(50, 50), n_agents=3,
-                 gaussian_bias=False, heatmap_std_dev=5, heatmap_center=None):
+                 gaussian_bias=False, heatmap_std_dev=5, heatmap_center=None,
+                 initial_agent_positions=None, initial_target_position=None):
         self.grid_size = grid_size
         self.n_states = grid_size[0] * grid_size[1]  # Total states in the grid
         self.n_agents = n_agents
@@ -13,11 +14,17 @@ class SearchEnvironment:
         self.heatmap_std_dev = heatmap_std_dev
         self.heatmap_center = heatmap_center
 
-        # Initialize agents at random positions
-        self.agent_positions = tuple(np.random.choice(self.n_states, self.n_agents, replace=False))
+        # Initialize agents at given positions or randomly
+        if initial_agent_positions is not None:
+            self.agent_positions = tuple(initial_agent_positions)
+        else:
+            self.agent_positions = tuple(np.random.choice(self.n_states, self.n_agents, replace=False))
 
-        # Initialize target position randomly
-        self.true_position = np.random.choice(self.n_states)
+        # Initialize target at given position or randomly
+        if initial_target_position is not None:
+            self.true_position = initial_target_position
+        else:
+            self.true_position = np.random.choice(self.n_states)
 
         # Store movement history
         self.trajectories = {
