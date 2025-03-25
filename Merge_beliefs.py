@@ -109,8 +109,8 @@ def test_simulation():
     np.random.seed(42)
 
     num_agents = 10
-    num_states = 5
-    proximity_distance = 3.0
+    num_states = 250
+    proximity_distance = 25.0
 
     sim = Simulation(num_agents, num_states, proximity_distance)
 

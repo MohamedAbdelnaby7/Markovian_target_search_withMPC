@@ -116,7 +116,7 @@ class TargetSearchMPC:
             new_positions = self.mpc_plan(objective_type)
             self.env.agent_positions = list(new_positions)
             
-            self.env.move_target()
+            self.env.move_target(step)
             self.env.update_agents(new_positions)
             
             # Get sensor observations
@@ -139,3 +139,57 @@ class TargetSearchMPC:
         print("Target not detected within the given steps.")
         self.visualize_trajectories(initial_belief)
         return self.env.trajectories
+    
+class TargetSearchMPCWithBeliefMerging(TargetSearchMPC):
+    def __init__(self, env, alpha=0.1, beta=0.1, horizon=2, fast_mode=False):
+        super().__init__(env, alpha, beta, horizon, fast_mode)
+
+    def mpc_plan(self):
+        """ Plan using MPC with belief merging """
+        self.env.check_proximity()
+
+        # Now plan for the agent itself using its updated belief
+        best_value = -np.inf
+        best_action = None
+
+        for agent_id in range(self.env.n_agents):       
+            agent_pos = self.env.agent_positions[agent_id]
+            neighbors = self.env.get_neighbors(agent_pos)
+            for neighbor in neighbors:
+                current_belief = self.env.agent_beliefs[agent_id].copy()
+                total_value = 0
+
+                # Simulate observations over the horizon
+                obs_horizon = self.simulate_observation(neighbor, self.horizon)
+
+                for t in range(self.horizon):
+                    current_belief = self.update_belief(neighbor, obs_horizon[t])
+                    total_value += np.max(current_belief)
+
+                if total_value > best_value:
+                    best_value = total_value
+                    best_action = neighbor
+
+        return best_action
+
+    def run_simulation(self, steps=20):
+        initial_beliefs = self.env.get_agent_beliefs().copy()
+
+        for step in range(steps):
+            print(f"Step {step}")
+
+            # Plan and move agents individually
+            for agent_id in range(self.env.n_agents):
+                best_action = self.mpc_plan(agent_id)
+                self.env.agent_positions[agent_id] = best_action[0]  # Take the best action for the agent
+
+            self.env.move_target(step)
+            self.env.update_agents(self.env.agent_positions)
+
+            # Update beliefs after movement
+            for agent_id in range(self.env.n_agents):
+                self.env.update_beliefs_after_move()
+
+            print("Updated agent positions and beliefs:")
+            for agent_id, belief in enumerate(self.env.get_agent_beliefs()):
+                print(f"Agent {agent_id}: {belief}")

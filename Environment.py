@@ -142,3 +142,59 @@ class SearchEnvironment:
         self.agent_positions = tuple(new_positions)
         for i, pos in enumerate(new_positions):
             self.trajectories['agents'][i].append(pos)
+
+class SearchEnvironmentWithBeliefs(SearchEnvironment):
+    def __init__(self, grid_size=(50, 50), n_agents=3, initial_agent_positions=None, proximity_distance=3):
+        super().__init__(grid_size, n_agents, initial_agent_positions=initial_agent_positions)
+        self.proximity_distance = proximity_distance
+        # Initialize agent beliefs (uniform for now)
+        self.agent_beliefs = [np.ones(self.n_states) / self.n_states for _ in range(self.n_agents)]
+
+    def get_agent_beliefs(self):
+        return self.agent_beliefs
+
+    def merge_beliefs(self, agents_in_range):
+        """ Merge the beliefs of the agents within proximity """
+        beliefs = [self.agent_beliefs[agent_id] for agent_id in agents_in_range]
+        merged_belief = self.merge_beliefs_using_kl(beliefs, agent_weights=np.ones(len(beliefs)))  # Equal weight for now
+        return merged_belief
+
+    def merge_beliefs_using_kl(self, beliefs, agent_weights):
+        """ Perform belief merging using KL Divergence """
+        num_states = beliefs[0].shape[0]
+        
+        def kl_divergence(p, q):
+            p = np.clip(p, 1e-10, 1)
+            q = np.clip(q, 1e-10, 1)
+            return np.sum(p * np.log(p / q))
+
+        def objective(merged_belief):
+            merged_belief = np.clip(merged_belief, 1e-10, 1)
+            merged_belief /= np.sum(merged_belief)
+            divergence = 0
+            for belief, weight in zip(beliefs, agent_weights):
+                divergence += weight * kl_divergence(belief, merged_belief)
+            return divergence
+
+        initial_guess = np.mean(beliefs, axis=0)
+        constraints = ({'type': 'eq', 'fun': lambda b: np.sum(b) - 1})
+        bounds = [(0, 1) for _ in range(num_states)]
+
+        result = minimize(objective, initial_guess, bounds=bounds, constraints=constraints, method='SLSQP')
+
+        if result.success:
+            return result.x / np.sum(result.x)
+        else:
+            raise ValueError("Optimization failed: " + result.message)
+
+    def check_proximity(self):
+        # Check for proximity-based communication and merge beliefs
+        for agent_id in range(self.n_agents):
+            agents_in_range = [
+                other_agent_id for other_agent_id in range(self.n_agents)
+                if self.distance(self.agent_positions[agent_id], self.agent_positions[other_agent_id]) <= self.proximity_distance
+            ]
+            if len(agents_in_range) > 1:
+                merged_belief = self.merge_beliefs(agents_in_range)
+                for agent_id in agents_in_range:
+                    self.agent_beliefs[agent_id] = merged_belief
