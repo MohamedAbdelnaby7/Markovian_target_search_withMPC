@@ -2,6 +2,7 @@ import numpy as np
 import random
 import itertools
 import math
+from scipy.optimize import minimize
 
 class SearchEnvironment:
     def __init__(self, grid_size=(50, 50), n_agents=3,
@@ -108,7 +109,8 @@ class SearchEnvironment:
         if not neighbors:
             return # No valid Movies
         if self.precomputed_target_trajectory is not None:
-            return self.precomputed_target_trajectory[current_step]
+            self.true_position = self.precomputed_target_trajectory[current_step]
+            self.trajectories['target'].append(self.true_position)
         else:
             # If gaussian_bias is True and a heatmap center is provided,
             # choose the neighbor that minimizes the Euclidean distance to the heatmap center.
@@ -144,8 +146,10 @@ class SearchEnvironment:
             self.trajectories['agents'][i].append(pos)
 
 class SearchEnvironmentWithBeliefs(SearchEnvironment):
-    def __init__(self, grid_size=(50, 50), n_agents=3, initial_agent_positions=None, proximity_distance=3):
-        super().__init__(grid_size, n_agents, initial_agent_positions=initial_agent_positions)
+    def __init__(self, grid_size=(50, 50), n_agents=3, initial_agent_positions=None, initial_target_position=None, target_mdp = False, 
+                 proximity_distance=3, precomputed_target_trajectory=None):
+        super().__init__(grid_size, n_agents, initial_agent_positions=initial_agent_positions, initial_target_position=initial_target_position, 
+                         target_mdp=target_mdp, precomputed_target_trajectory=precomputed_target_trajectory)
         self.proximity_distance = proximity_distance
         # Initialize agent beliefs (uniform for now)
         self.agent_beliefs = [np.ones(self.n_states) / self.n_states for _ in range(self.n_agents)]
@@ -187,6 +191,18 @@ class SearchEnvironmentWithBeliefs(SearchEnvironment):
         else:
             raise ValueError("Optimization failed: " + result.message)
 
+    def state_to_position(self, state_index):
+        """Convert state index to (x, y) coordinates on the grid."""
+        row = state_index // self.grid_size[0]
+        col = state_index % self.grid_size[0]
+        return np.array([row, col])
+
+    def distance(self, agent1, agent2):
+        """Compute Euclidean distance between two agents based on their state indices."""
+        pos1 = self.state_to_position(agent1)
+        pos2 = self.state_to_position(agent2)
+        return np.linalg.norm(pos1 - pos2)
+    
     def check_proximity(self):
         # Check for proximity-based communication and merge beliefs
         for agent_id in range(self.n_agents):

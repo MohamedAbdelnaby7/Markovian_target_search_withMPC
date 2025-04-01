@@ -24,6 +24,8 @@ class TargetSearchMPC:
         
         # Update step (Bayesian update)
         likelihood = np.ones(self.env.n_states)
+        sensors = np.atleast_1d(sensors)
+        observations = np.atleast_1d(observations)
         for s, obs in zip(sensors, observations):
             if obs == 1:
                 likelihood[s] *= (1 - self.beta)  # True positive
@@ -40,6 +42,7 @@ class TargetSearchMPC:
     def simulate_observation(self, sensors, horizon):
         """Generate simulated sensor observations"""
         """Vectorized Sensor Observations (Avoids Loop-Based Sampling)"""
+        sensors = np.atleast_1d(sensors)
         predicted_target_pos = self.env.true_position  # Start from the current position
         observations_over_horizon = []  # Store observations at each time step
 
@@ -132,25 +135,26 @@ class TargetSearchMPC:
                 if obs[agent_idx] == 1 and self.belief[agent_cell] > detection_threshold:
                     print(f"Target detected by Agent {agent_idx} at step {step}, cell {divmod(self.env.true_position, 50)}.")
                     # Optionally store final results
-                    self.visualize_trajectories(initial_belief)
+                    #self.visualize_trajectories(initial_belief)
                     return self.env.trajectories
         
         # If we exit the loop without detection, just visualize and return
         print("Target not detected within the given steps.")
-        self.visualize_trajectories(initial_belief)
+        #self.visualize_trajectories(initial_belief)
         return self.env.trajectories
     
 class TargetSearchMPCWithBeliefMerging(TargetSearchMPC):
     def __init__(self, env, alpha=0.1, beta=0.1, horizon=2, fast_mode=False):
         super().__init__(env, alpha, beta, horizon, fast_mode)
 
-    def mpc_plan(self):
+    def mpc_plan(self, objective_type):
         """ Plan using MPC with belief merging """
         self.env.check_proximity()
 
         # Now plan for the agent itself using its updated belief
         best_value = -np.inf
-        best_action = None
+        best_actions = []
+        best_action =None
 
         for agent_id in range(self.env.n_agents):       
             agent_pos = self.env.agent_positions[agent_id]
@@ -164,32 +168,11 @@ class TargetSearchMPCWithBeliefMerging(TargetSearchMPC):
 
                 for t in range(self.horizon):
                     current_belief = self.update_belief(neighbor, obs_horizon[t])
-                    total_value += np.max(current_belief)
+                    total_value += self.objective_function(objective_type, current_belief)
 
                 if total_value > best_value:
                     best_value = total_value
                     best_action = neighbor
+            best_actions.append(best_action)                   
 
-        return best_action
-
-    def run_simulation(self, steps=20):
-        initial_beliefs = self.env.get_agent_beliefs().copy()
-
-        for step in range(steps):
-            print(f"Step {step}")
-
-            # Plan and move agents individually
-            for agent_id in range(self.env.n_agents):
-                best_action = self.mpc_plan(agent_id)
-                self.env.agent_positions[agent_id] = best_action[0]  # Take the best action for the agent
-
-            self.env.move_target(step)
-            self.env.update_agents(self.env.agent_positions)
-
-            # Update beliefs after movement
-            for agent_id in range(self.env.n_agents):
-                self.env.update_beliefs_after_move()
-
-            print("Updated agent positions and beliefs:")
-            for agent_id, belief in enumerate(self.env.get_agent_beliefs()):
-                print(f"Agent {agent_id}: {belief}")
+        return best_actions
