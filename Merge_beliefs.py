@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import minimize
+import json
 
 # Define KL divergence function
 def kl_divergence(p, q):
@@ -7,6 +8,39 @@ def kl_divergence(p, q):
     p = np.clip(p, epsilon, 1)
     q = np.clip(q, epsilon, 1)
     return np.sum(p * np.log(p / q))
+
+def load_json(filename):
+    """Load JSON data from a file."""
+    with open(filename, 'r') as f:
+        data = json.load(f)
+    return data
+
+def compute_kl_divergences(individual_belief_history, true_belief_history):
+    """
+    Compute the KL divergence for each agent at each time step compared to the true belief.
+    
+    Parameters:
+      individual_belief_history: List of lists.
+        Each element corresponds to one time step and is a list of individual agent beliefs.
+        Example structure: [ [agent0_step0, agent1_step0, ...], [agent0_step1, ...], ... ]
+      true_belief_history: List.
+        Each element is the true unified belief (a probability distribution) at a corresponding time step.
+    
+    Returns:
+      A list of lists, where each inner list contains the KL divergence values for each agent at that time step.
+    """
+    kl_history = []
+    num_steps = len(true_belief_history)
+    
+    for step in range(num_steps):
+        true_belief = true_belief_history[step]
+        agent_beliefs = individual_belief_history[step]
+        step_kl = []
+        for agent_belief in agent_beliefs:
+            kl = kl_divergence(agent_belief, true_belief)
+            step_kl.append(kl)
+        kl_history.append(step_kl)
+    return kl_history
 
 # Define the belief merging optimization function
 def merge_beliefs(agent_beliefs, agent_weights):

@@ -2,6 +2,7 @@ import itertools
 import numpy as np
 from scipy.stats import entropy
 from utils import visualize_trajectories
+import json
 
 class TargetSearchMPC:
     def __init__(self, env, alpha=0.1, beta=0.1, horizon=2, fast_mode=False):
@@ -16,11 +17,12 @@ class TargetSearchMPC:
     
         self.correct_detections = 0  # Track successful detections
         self.map_estimates = []  # Store MAP estimates
+        self.belief_history = []
 
-    def update_belief(self, sensors, observations):
+    def update_belief(self, sensors, observations, belief):
         """Update belief based on sensor readings"""
         # Predict step (Markov transition)
-        predicted_belief = self.env.transition_matrix.T @ self.belief
+        predicted_belief = self.env.transition_matrix.T @ belief
         
         # Update step (Bayesian update)
         likelihood = np.ones(self.env.n_states)
@@ -108,6 +110,7 @@ class TargetSearchMPC:
                 if total_value > best_value:
                     best_value = total_value
                     best_action = action_seq
+        self.belief_history.append(self.belief.copy())
         return best_action
     
     def run_simulation(self, steps=20, detection_threshold=0.8, objective_type = "greedy_map"):
@@ -126,7 +129,7 @@ class TargetSearchMPC:
             obs = self.simulate_observation(new_positions, 0)
 
             # Update belief
-            self.belief = self.update_belief(new_positions, obs)
+            self.belief = self.update_belief(new_positions, obs, self.belief)
 
             # --- Stopping Criterion ---
             # Check each agent’s position: if sensor=1 and posterior>threshold
@@ -135,6 +138,7 @@ class TargetSearchMPC:
                 if obs[agent_idx] == 1 and self.belief[agent_cell] > detection_threshold:
                     print(f"Target detected by Agent {agent_idx} at step {step}, cell {divmod(self.env.true_position, 50)}.")
                     # Optionally store final results
+                    self.save_results(self.belief_history, self.env.trajectories)
                     #self.visualize_trajectories(initial_belief)
                     return self.env.trajectories
         
@@ -143,11 +147,17 @@ class TargetSearchMPC:
         #self.visualize_trajectories(initial_belief)
         return self.env.trajectories
     
+    def save_results(self, belief_history, trajectory_history, belief_file='belief_history.json', trajectory_file='trajectory_history.json'):
+        with open(belief_file, 'w') as f:
+            json.dump(belief_history, f)
+        with open(trajectory_file, 'w') as f:
+            json.dump(trajectory_history, f)
+    
 class TargetSearchMPCWithBeliefMerging(TargetSearchMPC):
     def __init__(self, env, alpha=0.1, beta=0.1, horizon=2, fast_mode=False):
         super().__init__(env, alpha, beta, horizon, fast_mode)
 
-    def mpc_plan(self, objective_type):
+    def mpc_plan(self,   objective_type):
         """ Plan using MPC with belief merging """
         self.env.check_proximity()
 
@@ -167,12 +177,16 @@ class TargetSearchMPCWithBeliefMerging(TargetSearchMPC):
                 obs_horizon = self.simulate_observation(neighbor, self.horizon)
 
                 for t in range(self.horizon):
-                    current_belief = self.update_belief(neighbor, obs_horizon[t])
+                    current_belief = self.update_belief(neighbor, obs_horizon[t], current_belief)
                     total_value += self.objective_function(objective_type, current_belief)
 
                 if total_value > best_value:
                     best_value = total_value
                     best_action = neighbor
-            best_actions.append(best_action)                   
+                self.env.agent_beliefs[agent_id] = self.update_belief(neighbor, obs_horizon[t], self.env.agent_beliefs[agent_id])
+            best_actions.append(best_action)   
+        # Record all agent beliefs at this step
+        step_beliefs = [belief.copy() for belief in self.env.agent_beliefs]
+        self.belief_history.append(step_beliefs)                
 
         return best_actions
