@@ -1,0 +1,194 @@
+================================================================================
+TEST 1: OVERLAPPING PLATEAUS
+================================================================================
+
+Comparing belief merging methods for test: plateaus
+  - Simple Average: 0.0000 seconds
+  - Consensus: 0.0010 seconds
+  - KL Divergence: 331.1925 seconds
+  - Geometric Mean: 0.0000 seconds
+Belief entropies: [np.float64(4.56687034921714), np.float64(4.558121686526084)]
+Weights for merging: [np.float64(0.4995309024041241), np.float64(0.5004690975958758)]
+  - Weighted Average: 0.0000 seconds
+
+Pairwise Jensen-Shannon Divergence:
+  - Simple Average vs Consensus: 0.000000
+  - Simple Average vs KL Divergence: 0.000000
+  - Simple Average vs Geometric Mean: 0.226262
+  - Simple Average vs Weighted Average: 0.000000
+  - Consensus vs KL Divergence: 0.000000
+  - Consensus vs Geometric Mean: 0.226262
+  - Consensus vs Weighted Average: 0.000000
+  - KL Divergence vs Geometric Mean: 0.226262
+  - KL Divergence vs Weighted Average: 0.000000
+  - Geometric Mean vs Weighted Average: 0.226265
+
+KL Divergence Objective Values:
+  - Simple Average: 0.743705
+  - Consensus: 0.743705
+  - KL Divergence: 0.743705
+  - Geometric Mean: 8.252125
+  - Weighted Average: 0.743705
+
+Entropy of Merged Beliefs:
+  - Simple Average: 4.934348
+  - Consensus: 4.934348
+  - KL Divergence: 4.934348
+  - Geometric Mean: 4.095940
+  - Weighted Average: 4.934342
+
+================================================================================
+TEST 2: DIFFUSE OVERLAPPING BELIEFS
+================================================================================
+
+Comparing belief merging methods for test: diffuse
+  - Simple Average: 0.0000 seconds
+  - Consensus: 0.0020 seconds
+  - KL Divergence: 660.4036 seconds
+  - Geometric Mean: 0.0011 seconds
+Belief entropies: [np.float64(5.707556930694578), np.float64(5.651655369249189)]
+Weights for merging: [np.float64(0.49758194762779556), np.float64(0.5024180523722045)]
+  - Weighted Average: 0.0000 seconds
+
+Pairwise Jensen-Shannon Divergence:
+  - Simple Average vs Consensus: 0.000000
+  - Simple Average vs KL Divergence: 0.000000
+  - Simple Average vs Geometric Mean: 0.039229
+  - Simple Average vs Weighted Average: 0.000001
+  - Consensus vs KL Divergence: 0.000000
+  - Consensus vs Geometric Mean: 0.039229
+  - Consensus vs Weighted Average: 0.000001
+  - KL Divergence vs Geometric Mean: 0.039229
+  - KL Divergence vs Weighted Average: 0.000001
+  - Geometric Mean vs Weighted Average: 0.039203
+
+KL Divergence Objective Values:
+  - Simple Average: 0.272336
+  - Consensus: 0.272336
+  - KL Divergence: 0.272336
+  - Geometric Mean: 1.700017
+  - Weighted Average: 0.272341
+
+Entropy of Merged Beliefs:
+  - Simple Average: 5.815774
+  - Consensus: 5.815774
+  - KL Divergence: 5.815774
+  - Geometric Mean: 5.571191
+  - Weighted Average: 5.815655
+
+================================================================================
+TEST 3: CONFLICTING REGIONS
+================================================================================
+
+Comparing belief merging methods for test: conflict
+  - Simple Average: 0.0000 seconds
+  - Consensus: 0.0020 seconds
+  - KL Divergence: 265.2236 seconds
+  - Geometric Mean: 0.0000 seconds
+Belief entropies: [np.float64(3.536248851107398), np.float64(3.548974026426084)]
+Weights for merging: [np.float64(0.5008733552516238), np.float64(0.49912664474837637)]
+  - Weighted Average: 0.0010 seconds
+
+Pairwise Jensen-Shannon Divergence:
+  - Simple Average vs Consensus: 0.000000
+  - Simple Average vs KL Divergence: 0.000000
+  - Simple Average vs Geometric Mean: 0.011799
+  - Simple Average vs Weighted Average: 0.000000
+  - Consensus vs KL Divergence: 0.000000
+  - Consensus vs Geometric Mean: 0.011799
+  - Consensus vs Weighted Average: 0.000000
+  - KL Divergence vs Geometric Mean: 0.011799
+  - KL Divergence vs Weighted Average: 0.000000
+  - Geometric Mean vs Weighted Average: 0.011801
+
+KL Divergence Objective Values:
+  - Simple Average: 1.386294
+  - Consensus: 1.386294
+  - KL Divergence: 1.386294
+  - Geometric Mean: 1.478027
+  - Weighted Average: 1.386297
+
+Entropy of Merged Beliefs:
+  - Simple Average: 4.235759
+  - Consensus: 4.235759
+  - KL Divergence: 4.235759
+  - Geometric Mean: 4.378746
+  - Weighted Average: 4.235746
+
+================================================================================
+TEST 4: UNCERTAIN VS CERTAIN
+================================================================================
+
+Comparing belief merging methods for test: uncertain
+  - Simple Average: 0.0010 seconds
+  - Consensus: 0.0020 seconds
+  - KL Divergence: 783.4744 seconds
+  - Geometric Mean: 0.0000 seconds
+Belief entropies: [np.float64(5.767471407669628), np.float64(3.993088703075725)]
+Weights for merging: [np.float64(0.4109295719886416), np.float64(0.5890704280113583)]
+  - Weighted Average: 0.0011 seconds
+
+Pairwise Jensen-Shannon Divergence:
+  - Simple Average vs Consensus: 0.000000
+  - Simple Average vs KL Divergence: 0.000000
+  - Simple Average vs Geometric Mean: 0.119928
+  - Simple Average vs Weighted Average: 0.002405
+  - Consensus vs KL Divergence: 0.000000
+  - Consensus vs Geometric Mean: 0.119928
+  - Consensus vs Weighted Average: 0.002405
+  - KL Divergence vs Geometric Mean: 0.119928
+  - KL Divergence vs Weighted Average: 0.002405
+  - Geometric Mean vs Weighted Average: 0.098452
+
+KL Divergence Objective Values:
+  - Simple Average: 0.741008
+  - Consensus: 0.741008
+  - KL Divergence: 0.741008
+  - Geometric Mean: 4.441649
+  - Weighted Average: 0.760505
+
+Entropy of Merged Beliefs:
+  - Simple Average: 5.250784
+  - Consensus: 5.250784
+  - KL Divergence: 5.250784
+  - Geometric Mean: 4.208056
+  - Weighted Average: 5.094475
+
+================================================================================
+TEST 5: SCATTERED IRREGULAR BELIEFS
+================================================================================
+
+Comparing belief merging methods for test: scattered
+  - Simple Average: 0.0015 seconds
+  - Consensus: 0.0000 seconds
+  - KL Divergence: 872.3694 seconds
+  - Geometric Mean: 0.0000 seconds
+Belief entropies: [np.float64(4.308741530088827), np.float64(4.512505667147414)]
+Weights for merging: [np.float64(0.5112935679847578), np.float64(0.48870643201524216)]
+  - Weighted Average: 0.0005 seconds
+
+Pairwise Jensen-Shannon Divergence:
+  - Simple Average vs Consensus: 0.000000
+  - Simple Average vs KL Divergence: 0.000000
+  - Simple Average vs Geometric Mean: 0.064845
+  - Simple Average vs Weighted Average: 0.000049
+  - Consensus vs KL Divergence: 0.000000
+  - Consensus vs Geometric Mean: 0.064845
+  - Consensus vs Weighted Average: 0.000049
+  - KL Divergence vs Geometric Mean: 0.064845
+  - KL Divergence vs Weighted Average: 0.000049
+  - Geometric Mean vs Weighted Average: 0.064218
+
+KL Divergence Objective Values:
+  - Simple Average: 0.987194
+  - Consensus: 0.987194
+  - KL Divergence: 0.987194
+  - Geometric Mean: 1.555330
+  - Weighted Average: 0.987583
+
+Entropy of Merged Beliefs:
+  - Simple Average: 4.904220
+  - Consensus: 4.904220
+  - KL Divergence: 4.904220
+  - Geometric Mean: 4.864115
+  - Weighted Average: 4.902068

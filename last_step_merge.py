@@ -146,7 +146,7 @@ class RegionRestrictedAgent:
 
 class LastStepMergeExperiment:
     def __init__(self, grid_size=(20, 20), n_agents=4, segmentation_type='equal', steps=3000, 
-                 alpha=0.1, beta=0.2, target_mdp=True):
+                 alpha=0.1, beta=0.2, target_mdp=True, custom_regions = None):
         """
         Experiment to compare individual search with final belief merging
         
@@ -177,8 +177,10 @@ class LastStepMergeExperiment:
         # Create reference environment for target dynamics
         self.env = SearchEnvironment(grid_size=grid_size, n_agents=1, target_mdp=target_mdp)
         
-        # Create segments
-        self.segments = self._create_segments(segmentation_type)
+        if custom_regions:
+            self.segments = custom_regions
+        else:
+            self.segments = self._create_segments(segmentation_type)
         
         # Generate target trajectory
         self._generate_target_trajectory()
@@ -605,11 +607,347 @@ def run_experiment(grid_size=(20, 20), n_agents=4, segmentation='equal', steps=3
     
     return experiment, merged_beliefs, kl_scores
 
-# Run the experiment if executed directly
-if __name__ == "__main__":
-    # Run the experiment with parameters
-    experiment, merged_beliefs, metrics = run_experiment(
-        grid_size=(20, 20), 
-        n_agents=4, 
-        steps=3000
+def calculate_comparison_metrics(experiment, merged_beliefs):
+    """Calculate and print comparison metrics for different merging methods"""
+    grid_size = experiment.grid_size
+    final_target_pos = experiment.target_trajectory[-1]
+    
+    # Create a "true belief" (point mass at target's final position)
+    true_belief = np.zeros(grid_size[0] * grid_size[1])
+    true_belief[final_target_pos] = 1.0
+    
+    print("\n=== Comparison Metrics ===")
+    
+    # KL divergence from true belief
+    kl_scores = {}
+    for method, belief in merged_beliefs.items():
+        # Add small epsilon to avoid division by zero
+        true = np.clip(true_belief, 1e-10, 1)
+        pred = np.clip(belief, 1e-10, 1)
+        
+        # KL(true || pred)
+        kl = np.sum(true * np.log(true / pred))
+        kl_scores[method] = kl
+        
+        # Entropy of belief (measure of uncertainty)
+        entropy = -np.sum(pred * np.log(pred))
+        
+        # Calculate Euclidean distance between belief mode and target
+        max_prob_pos = np.argmax(belief)
+        max_prob_row, max_prob_col = divmod(max_prob_pos, grid_size[1])
+        target_row, target_col = divmod(final_target_pos, grid_size[1])
+        euclidean_dist = np.sqrt((max_prob_row - target_row)**2 + (max_prob_col - target_col)**2)
+        
+        # Probability assigned to true position
+        prob_at_true = belief[final_target_pos]
+        
+        print(f"{method} Metrics:")
+        print(f"  - KL Divergence: {kl:.6f}")
+        print(f"  - Entropy: {entropy:.6f}")
+        print(f"  - Euclidean Distance: {euclidean_dist:.2f}")
+        print(f"  - Probability at True Position: {prob_at_true:.6f}")
+    
+    # Calculate KL divergences between methods
+    print("\n=== Method Comparisons ===")
+    methods = list(merged_beliefs.keys())
+    for i in range(len(methods)):
+        for j in range(i+1, len(methods)):
+            method1 = methods[i]
+            method2 = methods[j]
+            belief1 = np.clip(merged_beliefs[method1], 1e-10, 1)
+            belief2 = np.clip(merged_beliefs[method2], 1e-10, 1)
+            
+            # KL(method1 || method2)
+            kl12 = np.sum(belief1 * np.log(belief1 / belief2))
+            # KL(method2 || method1)
+            kl21 = np.sum(belief2 * np.log(belief2 / belief1))
+            # Jensen-Shannon Divergence
+            m = 0.5 * (belief1 + belief2)
+            js = 0.5 * (np.sum(belief1 * np.log(belief1 / m)) + np.sum(belief2 * np.log(belief2 / m)))
+            
+            print(f"{method1} vs {method2}:")
+            print(f"  - KL({method1}||{method2}): {kl12:.6f}")
+            print(f"  - KL({method2}||{method1}): {kl21:.6f}")
+            print(f"  - Jensen-Shannon Divergence: {js:.6f}")
+
+def run_conflicting_beliefs_experiment():
+    """Test case with overlapping regions and conflicting beliefs"""
+    # Create a shared region where multiple agents can operate
+    grid_size = (20, 20)
+    n_agents = 3
+    
+    # Custom regions with overlap in the center
+    regions = [
+        # Agent 0: Left side + center
+        [r * grid_size[1] + c for r in range(grid_size[0]) 
+                              for c in range(15)],
+        # Agent 1: Right side + center  
+        [r * grid_size[1] + c for r in range(grid_size[0]) 
+                              for c in range(5, grid_size[1])],
+        # Agent 2: Middle region
+        [r * grid_size[1] + c for r in range(5, 15) 
+                              for c in range(5, 15)]
+    ]
+    
+    # Create experiment with custom regions
+    experiment = LastStepMergeExperiment(
+        grid_size=grid_size,
+        n_agents=n_agents,
+        segmentation_type='custom',
+        steps=1000,
+        alpha=0.2,  # Higher false alarm rate
+        beta=0.3,   # Higher missed detection rate
+        custom_regions=regions
     )
+    
+    # Create artificial beliefs for each agent (instead of running simulation)
+    # Agent 0 believes target is in left-center
+    belief0 = np.zeros(grid_size[0] * grid_size[1])
+    for r in range(8, 12):
+        for c in range(3, 7):
+            state = r * grid_size[1] + c
+            belief0[state] = 1.0
+    experiment.agents[0].belief = belief0 / np.sum(belief0)
+    
+    # Agent 1 believes target is in right-center
+    belief1 = np.zeros(grid_size[0] * grid_size[1])
+    for r in range(8, 12):
+        for c in range(13, 17):
+            state = r * grid_size[1] + c
+            belief1[state] = 1.0
+    experiment.agents[1].belief = belief1 / np.sum(belief1)
+    
+    # Agent 2 believes target is in center
+    belief2 = np.zeros(grid_size[0] * grid_size[1])
+    for r in range(8, 12):
+        for c in range(8, 12):
+            state = r * grid_size[1] + c
+            belief2[state] = 1.0
+    experiment.agents[2].belief = belief2 / np.sum(belief2)
+    
+    # Set a known target position in one of the belief regions
+    experiment.target_trajectory = [10 * grid_size[1] + 10]  # Center position
+    
+    # Merge beliefs with different methods
+    merged_beliefs = {
+        "KL Divergence": experiment.merge_beliefs_kl(),
+        "Simple Average": experiment.merge_beliefs_average(),
+        "Consensus": experiment.merge_beliefs_consensus()
+    }
+    
+    # Visualize results
+    experiment.visualize_results(merged_beliefs)
+    
+    # Calculate metrics
+    calculate_comparison_metrics(experiment, merged_beliefs)
+    
+    return experiment, merged_beliefs
+
+def run_multimodal_experiment():
+    """Test case with agents having multi-modal belief distributions"""
+    grid_size = (20, 20)
+    n_agents = 3
+    
+    # Create experiment with default segmentation
+    experiment = LastStepMergeExperiment(
+        grid_size=grid_size,
+        n_agents=n_agents,
+        segmentation_type='equal',
+        steps=500
+    )
+    
+    # Agent 0: Bimodal belief in top region
+    belief0 = np.zeros(grid_size[0] * grid_size[1])
+    # First mode (left)
+    for r in range(1, 3):
+        for c in range(5, 8):
+            state = r * grid_size[1] + c
+            belief0[state] = 1.0
+    # Second mode (right)
+    for r in range(1, 3):
+        for c in range(12, 15):
+            state = r * grid_size[1] + c
+            belief0[state] = 1.0
+    experiment.agents[0].belief = belief0 / np.sum(belief0)
+    
+    # Agent 1: Gaussian-like belief in middle region
+    belief1 = np.zeros(grid_size[0] * grid_size[1])
+    center_r, center_c = 9, 10
+    for r in range(7, 13):
+        for c in range(5, 15):
+            dist_sq = (r - center_r)**2 + (c - center_c)**2
+            if dist_sq < 25:  # Within radius of 5
+                state = r * grid_size[1] + c
+                belief1[state] = np.exp(-dist_sq/10)  # Gaussian decay
+    experiment.agents[1].belief = belief1 / np.sum(belief1)
+    
+    # Agent 2: Uniform belief along horizontal band in bottom region
+    belief2 = np.zeros(grid_size[0] * grid_size[1])
+    for r in range(16, 18):
+        for c in range(3, 17):
+            state = r * grid_size[1] + c
+            belief2[state] = 1.0
+    experiment.agents[2].belief = belief2 / np.sum(belief2)
+    
+    # Set a known target position
+    experiment.target_trajectory = [9 * grid_size[1] + 10]  # Middle of the grid
+    
+    # Merge beliefs with different methods
+    merged_beliefs = {
+        "KL Divergence": experiment.merge_beliefs_kl(),
+        "Simple Average": experiment.merge_beliefs_average(),
+        "Consensus": experiment.merge_beliefs_consensus()
+    }
+    
+    # Visualize results
+    experiment.visualize_results(merged_beliefs)
+    
+    # Calculate metrics
+    calculate_comparison_metrics(experiment, merged_beliefs)
+    
+    return experiment, merged_beliefs
+
+def run_varying_confidence_experiment():
+    """Test case with agents having different levels of confidence"""
+    grid_size = (20, 20)
+    n_agents = 3
+    
+    # Create experiment
+    experiment = LastStepMergeExperiment(
+        grid_size=grid_size,
+        n_agents=n_agents,
+        segmentation_type='equal',
+        steps=500
+    )
+    
+    # Agent 0: Very high confidence but wrong location
+    belief0 = np.zeros(grid_size[0] * grid_size[1])
+    for r in range(2, 4):
+        for c in range(9, 11):
+            state = r * grid_size[1] + c
+            belief0[state] = 5.0  # Very high confidence
+    experiment.agents[0].belief = belief0 / np.sum(belief0)
+    
+    # Agent 1: Medium confidence and correct location
+    belief1 = np.zeros(grid_size[0] * grid_size[1])
+    true_pos = 10 * grid_size[1] + 10  # Center position
+    for r in range(9, 12):
+        for c in range(9, 12):
+            state = r * grid_size[1] + c
+            dist_sq = (r - 10)**2 + (c - 10)**2
+            belief1[state] = np.exp(-dist_sq/2)  # Gaussian around true position
+    experiment.agents[1].belief = belief1 / np.sum(belief1)
+    
+    # Agent 2: Low confidence, diffused belief
+    belief2 = np.zeros(grid_size[0] * grid_size[1])
+    for r in range(13, 18):
+        for c in range(5, 15):
+            state = r * grid_size[1] + c
+            belief2[state] = 0.2 + 0.05 * np.random.rand()  # Low, noisy confidence
+    experiment.agents[2].belief = belief2 / np.sum(belief2)
+    
+    # Set target position
+    experiment.target_trajectory = [true_pos]
+    
+    # Merge beliefs with different methods
+    merged_beliefs = {
+        "KL Divergence": experiment.merge_beliefs_kl(),
+        "Simple Average": experiment.merge_beliefs_average(),
+        "Consensus": experiment.merge_beliefs_consensus()
+    }
+    
+    # Visualize results
+    experiment.visualize_results(merged_beliefs)
+    
+    # Calculate metrics
+    calculate_comparison_metrics(experiment, merged_beliefs)
+    
+    return experiment, merged_beliefs
+
+def run_sparse_dense_experiment():
+    """Test case with sparse and dense belief distributions"""
+    grid_size = (20, 20)
+    n_agents = 3
+    
+    # Use equal segments
+    experiment = LastStepMergeExperiment(
+        grid_size=grid_size,
+        n_agents=n_agents,
+        segmentation_type='equal',
+        steps=500
+    )
+    
+    # Agent 0: Sparse, concentrated belief
+    belief0 = np.zeros(grid_size[0] * grid_size[1])
+    state1 = 2 * grid_size[1] + 5
+    state2 = 3 * grid_size[1] + 15
+    belief0[state1] = 0.7
+    belief0[state2] = 0.3
+    experiment.agents[0].belief = belief0
+    
+    # Agent 1: Medium density belief
+    belief1 = np.zeros(grid_size[0] * grid_size[1])
+    for r in range(8, 11):
+        for c in range(8, 13):
+            state = r * grid_size[1] + c
+            belief1[state] = 1.0 / (15) # 15 cells
+    experiment.agents[1].belief = belief1
+    
+    # Agent 2: Dense, uniform belief
+    belief2 = np.zeros(grid_size[0] * grid_size[1])
+    for r in range(13, 19):
+        for c in range(3, 17):
+            state = r * grid_size[1] + c
+            belief2[state] = 1.0 / (6 * 14)  # 84 cells
+    experiment.agents[2].belief = belief2
+    
+    # Set target position
+    experiment.target_trajectory = [9 * grid_size[1] + 10]  # In Agent 1's region
+    
+    # Merge beliefs with different methods
+    merged_beliefs = {
+        "KL Divergence": experiment.merge_beliefs_kl(),
+        "Simple Average": experiment.merge_beliefs_average(),
+        "Consensus": experiment.merge_beliefs_consensus()
+    }
+    
+    # Visualize results
+    experiment.visualize_results(merged_beliefs)
+    
+    # Calculate metrics
+    calculate_comparison_metrics(experiment, merged_beliefs)
+    
+    return experiment, merged_beliefs
+
+# # Run the experiment if executed directly
+# if __name__ == "__main__":
+#     # Run the experiment with parameters
+#     experiment, merged_beliefs, metrics = run_experiment(
+#         grid_size=(20, 20), 
+#         n_agents=4, 
+#         steps=3000
+#     )
+
+def run_all_experiments():
+    """Run all test cases and display results"""
+    print("\n=== TEST CASE 1: CONFLICTING BELIEFS ===")
+    exp1, beliefs1 = run_conflicting_beliefs_experiment()
+    
+    print("\n=== TEST CASE 2: MULTI-MODAL DISTRIBUTIONS ===")
+    exp2, beliefs2 = run_multimodal_experiment()
+    
+    print("\n=== TEST CASE 3: VARYING CONFIDENCE LEVELS ===")
+    exp3, beliefs3 = run_varying_confidence_experiment()
+    
+    print("\n=== TEST CASE 4: SPARSE AND DENSE BELIEFS ===")
+    exp4, beliefs4 = run_sparse_dense_experiment()
+    
+    return {
+        "conflicting": (exp1, beliefs1),
+        "multimodal": (exp2, beliefs2),
+        "confidence": (exp3, beliefs3),
+        "sparse_dense": (exp4, beliefs4)
+    }
+
+if __name__ == "__main__":
+    results = run_all_experiments()
